@@ -3,240 +3,346 @@ package com.example.simplecalculator
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 import kotlin.math.*
 
+val BgDark = Color(0xFF0B0E17)
+val TopBarBg = Color(0xFF131826)
+val SciBtnBg = Color(0xFF1F1C3D)
+val SciText = Color(0xFF9F96FF)
+val AcBtnBg = Color(0xFF3A1219)
+val AcText = Color(0xFFFF6B6B)
+val ActionBtnBg = Color(0xFF232938)
+val NumBtnBg = Color(0xFF161B28)
+val OpBtnBg = Color(0xFF132247)
+val OpText = Color(0xFF5C9DFF)
+val EqualBtnBg = Color(0xFF2563EB)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    ScientificCalculatorScreen()
+            MaterialTheme(colorScheme = darkColorScheme(background = BgDark)) {
+                Surface(modifier = Modifier.fillMaxSize(), color = BgDark) {
+                    ModernCalculatorApp()
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScientificCalculatorScreen() {
-    var num1 by remember { mutableStateOf("") }
-    var num2 by remember { mutableStateOf("") }
-    var result by remember { mutableStateOf("النتيجة ستظهر هنا") }
+fun ModernCalculatorApp() {
+    var display by remember { mutableStateOf("0") }
+    var expression by remember { mutableStateOf("") }
+    var firstOperand by remember { mutableStateOf<Double?>(null) }
+    var pendingOp by remember { mutableStateOf<String?>(null) }
+    var clearOnNextDigit by remember { mutableStateOf(false) }
 
-    // قائمة تفاعلية لحفظ سجل العمليات السابقة
     val historyList = remember { mutableStateListOf<String>() }
+    var showHistorySheet by remember { mutableStateOf(false) }
 
-    // دالة مساعدة لتحديث النتيجة وإضافة العملية للسجل في نفس الوقت
-    fun runBinaryOp(op: String) {
-        val calcResult = calculate(num1, num2, op)
-        result = calcResult.first
-        if (calcResult.second != null) {
-            historyList.add(0, calcResult.second!!) // إضافة العملية في أعلى القائمة
+    fun formatNum(value: Double): String {
+        if (value.isNaN() || value.isInfinite()) return "Error"
+        return if (value % 1.0 == 0.0) {
+            value.toLong().toString()
+        } else {
+            String.format(Locale.US, "%.6f", value).trimEnd('0').trimEnd('.')
         }
     }
 
-    fun runSingleOp(op: String) {
-        val calcResult = calculateSingle(num1, op)
-        result = calcResult.first
-        if (calcResult.second != null) {
-            historyList.add(0, calcResult.second!!)
+    fun onDigitClick(digit: String) {
+        if (clearOnNextDigit || display == "0" || display == "Error") {
+            display = if (digit == ".") "0." else digit
+            clearOnNextDigit = false
+        } else {
+            if (digit == "." && display.contains(".")) return
+            display += digit
         }
+    }
+
+    fun onOperatorClick(op: String) {
+        val current = display.toDoubleOrNull() ?: return
+        firstOperand = current
+        pendingOp = op
+        expression = "${formatNum(current)} $op"
+        clearOnNextDigit = true
+    }
+
+    fun onEqualClick() {
+        val op = pendingOp ?: return
+        val num1 = firstOperand ?: return
+        val num2 = display.toDoubleOrNull() ?: return
+
+        val res = when (op) {
+            "+" -> num1 + num2
+            "-" -> num1 - num2
+            "×" -> num1 * num2
+            "÷" -> if (num2 != 0.0) num1 / num2 else Double.NaN
+            "xʸ" -> num1.pow(num2)
+            else -> num2
+        }
+
+        val formattedRes = formatNum(res)
+        val fullRecord = "${formatNum(num1)} ${if (op == "xʸ") "^" else op} ${formatNum(num2)} = $formattedRes"
+        if (formattedRes != "Error") {
+            historyList.add(0, fullRecord)
+        }
+
+        expression = "${formatNum(num1)} ${if (op == "xʸ") "^" else op} ${formatNum(num2)} ="
+        display = formattedRes
+        firstOperand = null
+        pendingOp = null
+        clearOnNextDigit = true
+    }
+
+    fun onScientificClick(func: String) {
+        val current = display.toDoubleOrNull() ?: return
+        val (res, label) = when (func) {
+            "sin" -> Pair(sin(Math.toRadians(current)), "sin(${formatNum(current)}°)")
+            "cos" -> Pair(cos(Math.toRadians(current)), "cos(${formatNum(current)}°)")
+            "√x" -> Pair(if (current >= 0) sqrt(current) else Double.NaN, "√(${formatNum(current)})")
+            "%" -> Pair(current / 100.0, "${formatNum(current)}%")
+            else -> Pair(current, "")
+        }
+
+        val formattedRes = formatNum(res)
+        if (formattedRes != "Error") {
+            historyList.add(0, "$label = $formattedRes")
+        }
+        expression = label
+        display = formattedRes
+        clearOnNextDigit = true
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(BgDark)
+            .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
-        Text(
-            text = "آلة أحمد العلمية",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
-        )
-
-        OutlinedTextField(
-            value = num1,
-            onValueChange = { num1 = it },
-            label = { Text("الرقم الأول (أو الزاوية)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = num2,
-            onValueChange = { num2 = it },
-            label = { Text("الرقم الثاني") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // الصف الأول: العمليات الأساسية + زر المسح C
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            Button(onClick = { runBinaryOp("+") }) { Text("+", fontSize = 18.sp) }
-            Button(onClick = { runBinaryOp("-") }) { Text("-", fontSize = 18.sp) }
-            Button(onClick = { runBinaryOp("*") }) { Text("×", fontSize = 18.sp) }
-            Button(onClick = { runBinaryOp("/") }) { Text("÷", fontSize = 18.sp) }
-            Button(
-                onClick = {
-                    num1 = ""
-                    num2 = ""
-                    result = "تم المسح"
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
-            ) {
-                Text("C", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // الصف الثاني: العمليات العلمية
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            OutlinedButton(onClick = { runBinaryOp("^") }) { Text("xʸ") }
-            OutlinedButton(onClick = { runSingleOp("sqrt") }) { Text("√x") }
-            OutlinedButton(onClick = { runSingleOp("%") }) { Text("%") }
-            OutlinedButton(onClick = { runSingleOp("sin") }) { Text("sin") }
-            OutlinedButton(onClick = { runSingleOp("cos") }) { Text("cos") }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = result,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider() // خط فاصل أنيق بين الحاسبة والسجل
-
-        // رأس قسم السجل مع زر مسح السجل
+        // الشريط العلوي: Ahmed's Calc + زر History
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .background(TopBarBg)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "سجل العمليات (${historyList.size})",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            if (historyList.isNotEmpty()) {
-                TextButton(onClick = { historyList.clear() }) {
-                    Text("مسح السجل", color = Color(0xFFD32F2F))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .background(Color(0xFF2563EB), RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("±", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Ahmed's Calc",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            OutlinedButton(
+                onClick = { showHistorySheet = true },
+                shape = RoundedCornerShape(50),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color(0xFF1A2234),
+                    contentColor = Color(0xFFCBD5E1)
+                ),
+                border = ButtonDefaults.outlinedButtonBorder(enabled = true)
+            ) {
+                Text("↺  History", fontSize = 13.sp)
             }
         }
 
-        // قائمة السجل القابلة للتمرير
-        LazyColumn(
+        // منطقة عرض المعادلة والنتيجة
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.Bottom,
+            horizontalAlignment = Alignment.End
         ) {
-            items(historyList) { item ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+            Text(
+                text = expression,
+                color = Color(0xFF64748B),
+                fontSize = 20.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = display,
+                color = Color.White,
+                fontSize = 54.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // لوحة الأزرار
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CalcButton("sin", SciBtnBg, SciText, Modifier.weight(1f)) { onScientificClick("sin") }
+                CalcButton("cos", SciBtnBg, SciText, Modifier.weight(1f)) { onScientificClick("cos") }
+                CalcButton("√x", SciBtnBg, SciText, Modifier.weight(1f)) { onScientificClick("√x") }
+                CalcButton("xʸ", SciBtnBg, SciText, Modifier.weight(1f)) { onOperatorClick("xʸ") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CalcButton("AC", AcBtnBg, AcText, Modifier.weight(1f)) {
+                    display = "0"
+                    expression = ""
+                    firstOperand = null
+                    pendingOp = null
+                }
+                CalcButton("⌫", ActionBtnBg, Color.White, Modifier.weight(1f)) {
+                    display = if (display.length > 1 && display != "Error") {
+                        display.dropLast(1)
+                    } else {
+                        "0"
+                    }
+                }
+                CalcButton("%", ActionBtnBg, Color.White, Modifier.weight(1f)) { onScientificClick("%") }
+                CalcButton("÷", OpBtnBg, OpText, Modifier.weight(1f)) { onOperatorClick("÷") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CalcButton("7", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("7") }
+                CalcButton("8", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("8") }
+                CalcButton("9", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("9") }
+                CalcButton("×", OpBtnBg, OpText, Modifier.weight(1f)) { onOperatorClick("×") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CalcButton("4", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("4") }
+                CalcButton("5", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("5") }
+                CalcButton("6", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("6") }
+                CalcButton("-", OpBtnBg, OpText, Modifier.weight(1f)) { onOperatorClick("-") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+
+                CalcButton("1", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("1") }
+                CalcButton("2", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("2") }
+                CalcButton("3", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick("3") }
+                CalcButton("+", OpBtnBg, OpText, Modifier.weight(1f)) { onOperatorClick("+") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CalcButton("0", NumBtnBg, Color.White, Modifier.weight(2.1f)) { onDigitClick("0") }
+                CalcButton(".", NumBtnBg, Color.White, Modifier.weight(1f)) { onDigitClick(".") }
+                CalcButton("=", EqualBtnBg, Color.White, Modifier.weight(1f)) { onEqualClick() }
+            }
+        }
+    }
+    if (showHistorySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showHistorySheet = false },
+            containerColor = TopBarBg
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp)
+                    .heightIn(min = 250.dp, max = 450.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = item,
-                        fontSize = 16.sp,
-                        modifier = Modifier.padding(12.dp)
+                        text = "Calculation History",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
                     )
+                    if (historyList.isNotEmpty()) {
+                        TextButton(onClick = { historyList.clear() }) {
+                            Text("Clear", color = AcText)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                if (historyList.isEmpty()) {
+                    Text(
+                        text = "No calculations yet",
+                        color = Color(0xFF64748B),
+                        modifier = Modifier.padding(vertical = 24.dp)
+                    )
+                } else {
+                    LazyColumn {
+                        items(historyList) { item ->
+                            Text(
+                                text = item,
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp)
+                            )
+                            HorizontalDivider(color = Color(0xFF1E293B))
+                        }
+                    }
                 }
             }
         }
     }
 }
-
-fun formatNumber(value: Double): String {
-    return if (value % 1.0 == 0.0) {
-        value.toLong().toString()
-    } else {
-        String.format(Locale.US, "%.4f", value).trimEnd('0').trimEnd('.')
+@Composable
+fun CalcButton(
+    text: String,
+    bgColor: Color,
+    textColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(62.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = bgColor,
+            contentColor = textColor
+        ),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
-
-// ترجع هذه الدالة زوجًا (Pair): النص المعروض للنتيجة + نص العملية لحفظه في السجل
-fun calculate(n1: String, n2: String, op: String): Pair<String, String?> {
-    val number1 = n1.toDoubleOrNull()
-    val number2 = n2.toDoubleOrNull()
-
-    if (number1 == null || number2 == null) {
-        return Pair("أدخل الرقم الأول والثاني", null)
-    }
-
-    val symbol = when (op) {
-        "*" -> "×"
-        "/" -> "÷"
-        else -> op
-    }
-
-    val ans = when (op) {
-        "+" -> number1 + number2
-        "-" -> number1 - number2
-        "*" -> number1 * number2
-        "/" -> if (number2 != 0.0) number1 / number2 else return Pair("لا يمكن القسمة على صفر!", null)
-        "^" -> number1.pow(number2)
-        else -> return Pair("خطأ", null)
-    }
-
-    val formattedAns = formatNumber(ans)
-    val record = "${formatNumber(number1)} $symbol ${formatNumber(number2)} = $formattedAns"
-    return Pair("النتيجة: $formattedAns", record)
-}
-
-fun calculateSingle(n1: String, op: String): Pair<String, String?> {
-    val number1 = n1.toDoubleOrNull() ?: return Pair("أدخل الرقم الأول", null)
-
-    val (ans, recordPrefix) = when (op) {
-        "sqrt" -> if (number1 >= 0) Pair(sqrt(number1), "√${formatNumber(number1)}") else return Pair("لا يوجد جذر لعدد سالب", null)
-        "%" -> Pair(number1 / 100.0, "${formatNumber(number1)}%")
-        "sin" -> Pair(sin(Math.toRadians(number1)), "sin(${formatNumber(number1)}°)")
-        "cos" -> Pair(cos(Math.toRadians(number1)), "cos(${formatNumber(number1)}°)")
-        else -> return Pair("خطأ", null)
-    }
-
-    val formattedAns = formatNumber(ans)
-    val record = "$recordPrefix = $formattedAns"
-    return Pair("النتيجة: $formattedAns", record)
-}
-
-
-
-
