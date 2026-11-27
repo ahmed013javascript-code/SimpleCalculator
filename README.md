@@ -2,6 +2,13 @@
 <img width="2560" height="1600" alt="preview" src="https://github.com/user-attachments/assets/4f774993-720a-4791-8d1c-d172c3bb7f0a" />
 
 
+https://github.com/user-attachments/assets/ef1c10b7-5133-4acd-abdc-2335f9690c0f
+
+
+
+
+
+
 # 🧮 Ahmed's Scientific Calculator | آلة أحمد العلمية
 
 A clean, modern Android scientific calculator app built from scratch using **Kotlin** and **Jetpack Compose**.
